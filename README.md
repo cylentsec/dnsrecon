@@ -1,6 +1,5 @@
 # Background and Purpose
-
-This isn't your typical subdomain enumeration tool. This tool enriches domain lists by resolving each domain to its IP address and identifying the organization that owns the IP block. This helps you determine which domains are actually in scope for your pentest by showing the real infrastructure owners.
+This tool enriches domain lists by resolving each domain to its IP address and identifying the organization that owns the IP block. This helps you determine which domains are actually in scope for your pentest by showing the real infrastructure owners.
 
 The tool reads domains from stdin (pipe input), resolves each to an IPv4 address, then performs whois lookups to identify the organization that owns each IP block. It supports multiple regional internet registries (ARIN, RIPE, APNIC, etc.) and handles rate limiting gracefully.
 
