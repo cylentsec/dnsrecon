@@ -10,7 +10,7 @@ This is perfect for processing output from subdomain enumeration tools like chao
 ## Install dnsrecon (Go version - Recommended):
 
 ```bash
-go install github.com/sdcampbell/dnsrecon@latest
+go install github.com/cylentsec/dnsrecon@latest
 ```
 
 ## Install the Chaos client:
