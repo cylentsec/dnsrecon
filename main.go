@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	version = "v1.2.0"
+	version = "v1.3.0"
 	commit  = "none"
 	date    = "unknown"
 )
@@ -124,8 +124,10 @@ func getOrganization(ip string) (string, error) {
 func main() {
 	var showVersion bool
 	var scopeFlag bool
+	var noWhois bool
 	flag.BoolVar(&showVersion, "version", false, "show version information")
 	flag.BoolVar(&scopeFlag, "scope", false, "filter output using scope.txt (domains, IPs, or CIDRs)")
+	flag.BoolVar(&noWhois, "no-whois", false, "skip WHOIS lookups (faster processing)")
 	flag.Parse()
 
 	if showVersion {
@@ -135,7 +137,7 @@ func main() {
 
 	if flag.NArg() != 0 {
 		fmt.Println("This tool reads domains from stdin/pipe input.")
-		fmt.Printf("Usage: cat domains.txt | %s [-version] [-scope]\n", os.Args[0])
+		fmt.Printf("Usage: cat domains.txt | %s [-version] [-scope] [-no-whois]\n", os.Args[0])
 		fmt.Printf("   or: chaos -d example.com | %s\n", os.Args[0])
 		os.Exit(1)
 	}
@@ -187,8 +189,11 @@ func main() {
 			continue
 		}
 
-		// Get organization
-		org, _ := getOrganization(ip)
+		// Get organization (skip if --no-whois flag is set)
+		var org string
+		if !noWhois {
+			org, _ = getOrganization(ip)
+		}
 
 		// Apply scope filter if requested
 		if scopeFlag {
@@ -198,13 +203,18 @@ func main() {
 			}
 			if scope.Contains(line, parsedIP) {
 				fmt.Printf("%s;%s;%s\n", line, ip, org)
+				os.Stdout.Sync() // Force flush to stdout
 			}
 		} else {
 			fmt.Printf("%s;%s;%s\n", line, ip, org)
+			os.Stdout.Sync() // Force flush to stdout
 		}
 
 		// Add small delay between requests to be respectful to whois servers
-		time.Sleep(100 * time.Millisecond)
+		// Skip delay if not doing WHOIS lookups
+		if !noWhois {
+			time.Sleep(100 * time.Millisecond)
+		}
 	}
 
 	if err := scanner.Err(); err != nil {

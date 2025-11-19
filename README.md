@@ -52,6 +52,24 @@ Check version:
 dnsrecon -version
 ```
 
+## Fast Mode (Skip WHOIS)
+
+Use the `-no-whois` flag to skip WHOIS lookups for faster processing:
+
+```bash
+# Process 190K+ domains in minutes instead of hours
+cat large-domain-list.txt | dnsrecon -no-whois
+
+# Combine with scope filtering
+cat domains.txt | dnsrecon -scope -no-whois
+```
+
+Without WHOIS lookups:
+- Processing is much faster (no 100ms delay between domains)
+- Organization field will be empty in output
+- Useful for initial filtering when you only care about DNS resolution and IP addresses
+- You can enrich the filtered results later by piping them back through dnsrecon without the flag
+
 ## Scope Filtering
 
 Use the `-scope` flag to filter results based on a scope file:
