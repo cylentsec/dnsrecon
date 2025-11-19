@@ -52,6 +52,35 @@ Check version:
 dnsrecon -version
 ```
 
+## Scope Filtering
+
+Use the `-scope` flag to filter results based on a scope file:
+
+```bash
+# Filter output to only show in-scope results
+cat domains.txt | dnsrecon -scope
+```
+
+The `scope.txt` file should be in the current working directory and contain one entry per line:
+- Domain names (exact match only, not subdomains): `example.com`
+- IP addresses: `192.168.1.1`
+- Network ranges in CIDR notation: `10.0.0.0/8`
+
+Matching rules:
+- Domain must match exactly (case-insensitive)
+- IP address must match exactly OR be within a CIDR range
+- Any match (domain OR IP) will include the result
+
+Example scope.txt:
+```
+example.com
+203.0.113.10
+198.51.100.0/24
+2001:db8::/32
+```
+
+If `scope.txt` is not found when using `-scope`, a warning is printed to stderr and no results are shown.
+
 There are no banners or progress bars. The output is semi-colon separated for easy parsing with awk/grep/cut/Excel.
 
 # Example output
