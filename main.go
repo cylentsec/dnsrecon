@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	version = "v1.1.0"
+	version = "v1.2.0"
 	commit  = "none"
 	date    = "unknown"
 )
@@ -120,43 +120,6 @@ func getOrganization(ip string) (string, error) {
 	return getOrganizationWithRetry(ip, 3) // Max 3 attempts with exponential backoff
 }
 
-func readDomainsFromStdin() ([]string, error) {
-	var domains []string
-	scanner := bufio.NewScanner(os.Stdin)
-
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line != "" && !strings.Contains(line, "*") {
-			domains = append(domains, line)
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
-
-	return domains, nil
-}
-
-func removeDuplicates(slice []string) []string {
-	keys := make(map[string]bool)
-	var result []string
-
-	for _, item := range slice {
-		if !keys[item] {
-			keys[item] = true
-			result = append(result, item)
-		}
-	}
-
-	return result
-}
-
-type Result struct {
-	Domain string
-	IP     string
-	Org    string
-}
 
 func main() {
 	var showVersion bool
@@ -177,45 +140,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Read domains from stdin
-	domains, err := readDomainsFromStdin()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error reading domains from stdin: %v\n", err)
-		os.Exit(1)
-	}
-
-	if len(domains) == 0 {
-		fmt.Fprintf(os.Stderr, "No domains provided in stdin\n")
-		os.Exit(1)
-	}
-
-	// Remove duplicates
-	domains = removeDuplicates(domains)
-
-	// Process domains and accumulate results
-	var results []Result
-	for i, domain := range domains {
-		ip, err := resolveDomain(domain)
-		if err != nil {
-			continue
-		}
-
-		org, _ := getOrganization(ip)
-		results = append(results, Result{
-			Domain: domain,
-			IP:     ip,
-			Org:    org,
-		})
-
-		// Add small delay between requests to be respectful to whois servers
-		if i < len(domains)-1 { // Don't delay after the last domain
-			time.Sleep(100 * time.Millisecond)
-		}
-	}
-
-	// Apply scope filter if requested
+	// Load scope if needed
+	var scope Scope
 	if scopeFlag {
-		scope, err := LoadScope("scope.txt")
+		var err error
+		scope, err = LoadScope("scope.txt")
 		if err != nil {
 			if os.IsNotExist(err) {
 				fmt.Fprintf(os.Stderr, "Warning: scope.txt not found; no results will be printed with -scope\n")
@@ -229,20 +158,62 @@ func main() {
 				nets:    []*net.IPNet{},
 			}
 		}
+	}
 
-		for _, r := range results {
-			var ip net.IP
-			if r.IP != "" {
-				ip = net.ParseIP(r.IP)
-			}
-			if scope.Contains(r.Domain, ip) {
-				fmt.Printf("%s;%s;%s\n", r.Domain, r.IP, r.Org)
-			}
+	// Process domains line-by-line with streaming output
+	scanner := bufio.NewScanner(os.Stdin)
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, 1024*1024)
+
+	seen := make(map[string]bool)
+	domainCount := 0
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.Contains(line, "*") {
+			continue
 		}
-	} else {
-		// Print all results without filtering
-		for _, r := range results {
-			fmt.Printf("%s;%s;%s\n", r.Domain, r.IP, r.Org)
+
+		// Skip duplicates
+		if seen[line] {
+			continue
 		}
+		seen[line] = true
+		domainCount++
+
+		// Resolve domain
+		ip, err := resolveDomain(line)
+		if err != nil {
+			continue
+		}
+
+		// Get organization
+		org, _ := getOrganization(ip)
+
+		// Apply scope filter if requested
+		if scopeFlag {
+			var parsedIP net.IP
+			if ip != "" {
+				parsedIP = net.ParseIP(ip)
+			}
+			if scope.Contains(line, parsedIP) {
+				fmt.Printf("%s;%s;%s\n", line, ip, org)
+			}
+		} else {
+			fmt.Printf("%s;%s;%s\n", line, ip, org)
+		}
+
+		// Add small delay between requests to be respectful to whois servers
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	if err := scanner.Err(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error reading stdin: %v\n", err)
+		os.Exit(1)
+	}
+
+	if domainCount == 0 {
+		fmt.Fprintf(os.Stderr, "No domains provided in stdin\n")
+		os.Exit(1)
 	}
 }
